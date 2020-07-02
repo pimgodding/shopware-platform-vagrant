@@ -1,8 +1,8 @@
 <VirtualHost *:{{ apache_port }}>
-    DocumentRoot "/var/www/shopware.prod/public"
+    DocumentRoot "/var/www/shopware.dev/public"
     ServerName shopware.prod
     SetEnv TENANT_ID 20080911ffff4fffafffffff19830531
     <Directory "/var/www/shopware.prod/public">
-        AllowOverride Alls
+        AllowOverride All
     </Directory>
 </VirtualHost>

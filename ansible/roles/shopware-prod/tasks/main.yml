@@ -6,38 +6,14 @@
     dest: /home/vagrant/shopware-prod
     clone: yes
 
-- name: copy psh file for shopware-prod
+- name: copy .env file
+  template:
+    src: ".env.j2"
+    dest: "/home/vagrant/shopware-prod/.env"
+
+- name: composer install shopware
+  command: composer install -d /home/vagrant/shopware-prod
   become: yes
-  block:
-    - name: copy shopware config
-      template:
-        src: "psh.phar.j2"
-        dest: "/home/vagrant/shopware-prod/psh.phar"
-
-- name: delete custom/plugins folder
-  file:
-    path: /home/vagrant/shopware-prod/custom
-    state: absent
-
-- name: create symlink for synced custom directory
-  become: yes
-  file:
-    src: "/home/vagrant/custom"
-    dest: "/home/vagrant/shopware-prod/custom"
-    state: link
-
-
-#- name: delete platform folders
-#  file:
-#    path: /home/vagrant/shopware-prod/platform
-#    state: absent
-
-#- name: clone shopware platform git repo
-#  git:
-#    repo: http://github.com/shopware/platform.git
-#    version: "{{ shopware_version }}"
-#    dest: /home/vagrant/shopware-prod/platform
-#    clone: yes
 
 - name: create mysql database 'shopware'
   become: yes
@@ -79,6 +55,50 @@
     state: restarted
   become: yes
 
+- name: system install, create database, basic-setup
+  command: /home/vagrant/shopware-prod/bin/console system:install --basic-setup
+  become: yes
+
+- name: delete custom/plugins folder
+  file:
+    path: /home/vagrant/shopware-prod/custom
+    state: absent
+
+- name: create symlink for synced custom directory
+  become: yes
+  file:
+    src: "/home/vagrant/custom"
+    dest: "/home/vagrant/shopware-prod/custom"
+    state: link
+
+
+
+#
+#- name: copy psh file for shopware-prod
+#  become: yes
+#  block:
+#    - name: copy shopware config
+#      template:
+#        src: "psh.phar.j2"
+#        dest: "/home/vagrant/shopware-prod/psh.phar"
+
+
+#- name: chmod psh.phar file
+#  command: chmod 755 /home/vagrant/shopware-prod/psh.phar
+#  become: yes
+
+#- name: delete platform folders
+#  file:
+#    path: /home/vagrant/shopware-prod/platform
+#    state: absent
+
+#- name: clone shopware platform git repo
+#  git:
+#    repo: http://github.com/shopware/platform.git
+#    version: "{{ shopware_version }}"
+#    dest: /home/vagrant/shopware-prod/platform
+#    clone: yes
+
 - name: create symlink for shopware-prod directory
   become: yes
   file:
@@ -100,13 +120,13 @@
   vars:
     apache_port: "{{ 81 if proxy_enabled else 80 }}"
 
-- name: copy .psh.yaml.override file for shopware install
-  template:
-    src: ".psh.yaml.override.j2"
-    dest: "/home/vagrant/shopware-prod/.psh.yaml.override"
-  vars:
-    shop_host: "{{ proxy_hostname if proxy_enabled else '192.168.33.10' }}"
-    shop_protocol: "{{ 'https' if proxy_ssl else 'http' }}"
+#- name: copy .psh.yaml.override file for shopware install
+#  template:
+#    src: ".psh.yaml.override.j2"
+#    dest: "/home/vagrant/shopware-prod/.psh.yaml.override"
+#  vars:
+#    shop_host: "{{ proxy_hostname if proxy_enabled else '192.168.33.10' }}"
+#    shop_protocol: "{{ 'https' if proxy_ssl else 'http' }}"
 
 - name: enable site shopware.prod.conf
   command: a2ensite shopware.prod.conf
@@ -116,10 +136,10 @@
   command: a2dissite 000-default.conf
   become: yes
 
-- name: execute psh.phar install
-  command: "./psh.phar install"
-  args:
-    chdir: /home/vagrant/shopware-prod
+#- name: execute psh.phar install
+#  command: "./psh.phar install"
+#  args:
+#    chdir: /home/vagrant/shopware-prod
 
 - name: set trusted proxies
   lineinfile:
