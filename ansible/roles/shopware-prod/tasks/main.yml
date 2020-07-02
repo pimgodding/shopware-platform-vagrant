@@ -1,0 +1,135 @@
+---
+- name: clone shopware-prod git repo
+  git:
+    repo: http://github.com/shopware/production.git
+    version: "{{ shopware_version }}"
+    dest: /home/vagrant/shopware-prod
+    clone: yes
+
+- name: copy psh file for shopware-prod
+  become: yes
+  block:
+    - name: copy shopware config
+      template:
+        src: "psh.phar.j2"
+        dest: "/home/vagrant/shopware-prod/psh.phar"
+
+- name: delete custom/plugins folder
+  file:
+    path: /home/vagrant/shopware-prod/custom
+    state: absent
+
+- name: create symlink for synced custom directory
+  become: yes
+  file:
+    src: "/home/vagrant/custom"
+    dest: "/home/vagrant/shopware-prod/custom"
+    state: link
+
+
+#- name: delete platform folders
+#  file:
+#    path: /home/vagrant/shopware-prod/platform
+#    state: absent
+
+#- name: clone shopware platform git repo
+#  git:
+#    repo: http://github.com/shopware/platform.git
+#    version: "{{ shopware_version }}"
+#    dest: /home/vagrant/shopware-prod/platform
+#    clone: yes
+
+- name: create mysql database 'shopware'
+  become: yes
+  mysql_db:
+    name: shopware
+    state: present
+
+- name: create mysql database 'shopware_test'
+  become: yes
+  mysql_db:
+    name: shopware_test
+    state: present
+
+- name: create mysql database 'shopware_e2e'
+  become: yes
+  mysql_db:
+    name: shopware_e2e
+    state: present
+
+- name: create database user 'app' with privileges on shopware db
+  become: yes
+  mysql_user:
+    name: app
+    password: app
+    priv: 'shopware.*:ALL/shopware_test.*:ALL/shopware_e2e.*:ALL'
+    state: present
+
+- name: set group_concat_max_len setting for mysql db (for indexing)
+  become: yes
+  blockinfile:
+    dest: /etc/mysql/mysql.cnf
+    block: |
+      [mysqld]
+      group_concat_max_len=320000
+
+- name: restart mysql service
+  service:
+    name: mysql
+    state: restarted
+  become: yes
+
+- name: create symlink for shopware-prod directory
+  become: yes
+  file:
+    src: "/home/vagrant/shopware-prod"
+    dest: "/var/www/shopware.prod"
+    state: link
+
+- name: copy apache config files for shopware-prod
+  become: yes
+  block:
+    - name: copy shopware config
+      template:
+        src: "shopware.prod.conf.j2"
+        dest: "/etc/apache2/sites-available/shopware.prod.conf"
+    - name: copy apache ports config
+      template:
+        src: "ports.conf.j2"
+        dest: "/etc/apache2/ports.conf"
+  vars:
+    apache_port: "{{ 81 if proxy_enabled else 80 }}"
+
+- name: copy .psh.yaml.override file for shopware install
+  template:
+    src: ".psh.yaml.override.j2"
+    dest: "/home/vagrant/shopware-prod/.psh.yaml.override"
+  vars:
+    shop_host: "{{ proxy_hostname if proxy_enabled else '192.168.33.10' }}"
+    shop_protocol: "{{ 'https' if proxy_ssl else 'http' }}"
+
+- name: enable site shopware.prod.conf
+  command: a2ensite shopware.prod.conf
+  become: yes
+
+- name: disable 000-default.conf
+  command: a2dissite 000-default.conf
+  become: yes
+
+- name: execute psh.phar install
+  command: "./psh.phar install"
+  args:
+    chdir: /home/vagrant/shopware-prod
+
+- name: set trusted proxies
+  lineinfile:
+    path: /home/vagrant/shopware-prod/.env
+    regexp: '^#TRUSTED_PROXIES'
+    line: 'TRUSTED_PROXIES=127.0.0.1,127.0.0.2,::1'
+
+- name: enable mod_rewrite
+  become: yes
+  apache2_module:
+    name: rewrite
+    state: present
+  notify: restart-apache

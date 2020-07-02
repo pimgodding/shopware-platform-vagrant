@@ -7,5 +7,5 @@
 
   roles:
     - common
-    - shopware-dev
+    - shopware-prod
     - { role: nginx, when: proxy_enabled }
