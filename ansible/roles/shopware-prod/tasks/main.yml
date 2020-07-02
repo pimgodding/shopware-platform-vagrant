@@ -153,3 +153,4 @@
     name: rewrite
     state: present
   notify: restart-apache
+w
